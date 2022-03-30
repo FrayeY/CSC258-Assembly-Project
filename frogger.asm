@@ -36,13 +36,17 @@
         color_middle:   .word 0xf2c043
         color_road:     .word 0x555555
         color_car:      .word 0xfb1919
+        color_frog:     .word 0xe10cf6
 
 .text
 GAMELOOP:
         jal DRAW_BACKGROUND       # call function DRAW_BACKGROUND
-        # sw $t1, 0($t0)            # paint the first (top-left) unit red.
-        # sw $t2, 4($t0)            # paint the second unit on the first row green. Why $t0+4?
-        # sw $t3, 128($t0)          # paint the first unit on the second row blue. Why +128?
+        li $a0, 912               # 32 * 28 + 16 = 912
+        jal DRAW_FROG
+        li $v0, 32                # sleep
+        li $a0, 16                #   for 16 milliseconds before looping
+        syscall                   #   (achieving roughly 60 fps)
+        # j GAMELOOP
 Exit:
         li $v0, 10                # terminate the program gracefully
         syscall
@@ -90,15 +94,16 @@ DRAW_BACKGROUND:
         addi $sp, $sp, 4          #   address value
         jr $ra                    # return
 
-DRAW_RECTANGLE:                   # $a0, $a1, $a2, $a3 store the position addr , width, height, and color of the rectangle respectively
+DRAW_RECTANGLE:                   # $a0, $a1, $a2, $a3 store the position addr, width, height, and color of the rectangle respectively
         li $t8, 0                 # vertical iteration index $t8 = 0
         li $t5, 32                # units per horizontal line
         div $a0, $t5              # position addr / 32
         mfhi $t6                  # horizontal (unit) coordinate of rectangle
   VERTICAL_LOOP:
         beq $t8, $a2, VERTICAL_END # done loop if $t8 = $a2
-        mult $t8, $t5
-        mflo $t4
+        sll $t4, $t8, 5           # $t4 = $t8 * 32 = offset to move down $t8 rows
+        # mult $t8, $t5
+        # mflo $t4
         li $t9, 0                 # horizontal iteration index $t9 = 0
     HORIZONTAL_LOOP:
         beq $t9, $a1, HORIZONTAL_END # done loop if $t9 = $a1
@@ -106,7 +111,7 @@ DRAW_RECTANGLE:                   # $a0, $a1, $a2, $a3 store the position addr ,
         bge $t7, $t5, WRAP        # if $t7 >= $t5 = 32 then WRAP
         j NOWRAP                  # jump to NOWRAP
       WRAP:
-        sub $t7, $t7, $t5        # $t7 = $t7 - 32
+        sub $t7, $t7, $t5         # $t7 = $t7 - 32
       NOWRAP:
       	add $t7, $a0, $t7         # coordinate relative to $a0
         add $t7, $t7, $t4         # $t7 = $t7 + $t4 = (unit) coordinate of current "cursor" position
@@ -117,8 +122,31 @@ DRAW_RECTANGLE:                   # $a0, $a1, $a2, $a3 store the position addr ,
         addi $t9, $t9, 1          # $t9 = $t9 + 1
         j HORIZONTAL_LOOP         # jump back to start of loop
     HORIZONTAL_END:
-
         addi $t8, $t8, 1          # $t8 = $t8 + 1
-        j VERTICAL_LOOP         # jump back to start of loop
+        j VERTICAL_LOOP           # jump back to start of loop
   VERTICAL_END:
-        jr $ra
+        jr $ra                    # return
+
+DRAW_FROG:                        # $a0, $a1 store the position addr and direction (TODO) of the frog respectively
+        lw $t0, displayAddress    # $t0 stores the base address for display
+        sll $t1, $a0, 2           # $t1 = $a0 * 4 = offset
+        add $t0, $t0, $t1         # $t0 stores the base address of the frog
+        lw $t2, color_frog        # $t1 stores the color of the frog
+
+        sw $t2, 0($t0)            # first row |x__x|
+        sw $t2, 12($t0)
+
+        sw $t2, 128($t0)          # second row |xxxx|
+        sw $t2, 132($t0)
+        sw $t2, 136($t0)
+        sw $t2, 140($t0)
+
+        sw $t2, 260($t0)          # third row |_xx_|
+        sw $t2, 264($t0)
+
+        sw $t2, 384($t0)          # fourth row |xxxx|
+        sw $t2, 388($t0)
+        sw $t2, 392($t0)
+        sw $t2, 396($t0)
+
+        jr $ra                    # return
