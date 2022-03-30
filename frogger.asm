@@ -14,7 +14,7 @@
 #
 # Which milestone is reached in this submission?
 # (See the assignment handout for descriptions of the milestones)
-# - Milestone 0
+# - Milestone 1
 #
 # Which approved additional features have been implemented?
 # (See the assignment handout for the list of additional features)
@@ -41,12 +41,36 @@
 .text
 GAMELOOP:
         jal DRAW_BACKGROUND       # call function DRAW_BACKGROUND
-        li $a0, 912               # 32 * 28 + 16 = 912
-        jal DRAW_FROG
+        # draw logs
+        li $a1, 8                 # width of log is 8
+        li $a0, 258
+        jal DRAW_LOG
+        li $a0, 266
+        jal DRAW_LOG
+        li $a0, 388
+        jal DRAW_LOG
+        li $a0, 396
+        jal DRAW_LOG
+
+        # draw cars
+        li $a1, 8                 # width of car is 8
+        li $a0, 640
+        jal DRAW_CAR
+        li $a0, 648
+        jal DRAW_CAR
+        li $a0, 770
+        jal DRAW_CAR
+        li $a0, 778
+        jal DRAW_CAR
+
+        # draw frog
+        li $a0, 912               # 32 * 28 + 16 = 912 default position
+        jal DRAW_FROG             # draw frog at $a0
+
         li $v0, 32                # sleep
         li $a0, 16                #   for 16 milliseconds before looping
         syscall                   #   (achieving roughly 60 fps)
-        # j GAMELOOP
+        j GAMELOOP
 Exit:
         li $v0, 10                # terminate the program gracefully
         syscall
@@ -87,7 +111,7 @@ DRAW_BACKGROUND:
         li $a0, 896               # start region starts on the eighth big row
         li $a1, 32                # width is 32
         li $a2, 8                 # height is 8
-        lw $a3, color_safe       # road region color
+        lw $a3, color_safe        # road region color
         jal DRAW_RECTANGLE        # draw rectangle
 
         lw $ra, 0($sp)            # restore return
@@ -102,8 +126,6 @@ DRAW_RECTANGLE:                   # $a0, $a1, $a2, $a3 store the position addr, 
   VERTICAL_LOOP:
         beq $t8, $a2, VERTICAL_END # done loop if $t8 = $a2
         sll $t4, $t8, 5           # $t4 = $t8 * 32 = offset to move down $t8 rows
-        # mult $t8, $t5
-        # mflo $t4
         li $t9, 0                 # horizontal iteration index $t9 = 0
     HORIZONTAL_LOOP:
         beq $t9, $a1, HORIZONTAL_END # done loop if $t9 = $a1
@@ -127,7 +149,7 @@ DRAW_RECTANGLE:                   # $a0, $a1, $a2, $a3 store the position addr, 
   VERTICAL_END:
         jr $ra                    # return
 
-DRAW_FROG:                        # $a0, $a1 store the position addr and direction (TODO) of the frog respectively
+DRAW_FROG:                        # $a0 and $a1 store the position addr and direction (TODO) of the frog respectively
         lw $t0, displayAddress    # $t0 stores the base address for display
         sll $t1, $a0, 2           # $t1 = $a0 * 4 = offset
         add $t0, $t0, $t1         # $t0 stores the base address of the frog
@@ -149,4 +171,28 @@ DRAW_FROG:                        # $a0, $a1 store the position addr and directi
         sw $t2, 392($t0)
         sw $t2, 396($t0)
 
+        jr $ra                    # return
+
+DRAW_LOG:                         # $a0 and $a1 store the position addr and width of the log respectively
+        addi $sp, $sp, -4         # put $ra value
+        sw $ra, 0($sp)            #   onto stack
+
+        li $a2, 4                 # height of log is always 4
+        lw $a3, color_log         # log color
+        jal DRAW_RECTANGLE        # draw log as rectangle, $a0 and $a1 are set already by the caller
+
+        lw $ra, 0($sp)            # restore return
+        addi $sp, $sp, 4          #   address value
+        jr $ra                    # return
+
+DRAW_CAR:                         # $a0 and $a1 store the position addr and width of the car respectively
+        addi $sp, $sp, -4         # put $ra value
+        sw $ra, 0($sp)            #   onto stack
+
+        li $a2, 4                 # height of log is always 4
+        lw $a3, color_car         # car color
+        jal DRAW_RECTANGLE        # draw car as rectangle, $a0 and $a1 are set already by the caller
+
+        lw $ra, 0($sp)            # restore return
+        addi $sp, $sp, 4          #   address value
         jr $ra                    # return
