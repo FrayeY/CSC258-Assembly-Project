@@ -30,6 +30,8 @@
 
 .data
         displayAddress: .word 0x10008000
+
+    # colors
         color_safe:     .word 0x84c011
         color_water:    .word 0x06b7f2
         color_log:      .word 0x8f3f07
@@ -38,29 +40,31 @@
         color_car:      .word 0xfb1919
         color_frog:     .word 0xe10cf6
 
+    # positions
+
 .text
 GAMELOOP:
         jal DRAW_BACKGROUND       # call function DRAW_BACKGROUND
         # draw logs
         li $a1, 8                 # width of log is 8
-        li $a0, 258
+        li $a0, 260
         jal DRAW_LOG
-        li $a0, 266
+        li $a0, 276
         jal DRAW_LOG
-        li $a0, 388
+        li $a0, 392
         jal DRAW_LOG
-        li $a0, 396
+        li $a0, 408
         jal DRAW_LOG
 
         # draw cars
         li $a1, 8                 # width of car is 8
         li $a0, 640
         jal DRAW_CAR
-        li $a0, 648
+        li $a0, 656
         jal DRAW_CAR
-        li $a0, 770
+        li $a0, 780
         jal DRAW_CAR
-        li $a0, 778
+        li $a0, 796
         jal DRAW_CAR
 
         # draw frog
@@ -129,16 +133,17 @@ DRAW_RECTANGLE:                   # $a0, $a1, $a2, $a3 store the position addr, 
         li $t9, 0                 # horizontal iteration index $t9 = 0
     HORIZONTAL_LOOP:
         beq $t9, $a1, HORIZONTAL_END # done loop if $t9 = $a1
-        add $t7, $t6, $t9         # $t7 = $t6 + $t9 = horizontal (unit) coordinate of current "cursor" position
-        bge $t7, $t5, WRAP        # if $t7 >= $t5 = 32 then WRAP
+        lw $t0, displayAddress    # $t0 stores the base address for display
+        add $t7, $a0, $t9         # $t7 = $a0 + $t9 = (unit) coordinate of current "cursor" position (before vertical displacement)
+        add $t7, $t7, $t4         # $t7 = $t7 + $t4 = (unit) coordinate of current "cursor" position (after vertical displacement)
+        
+        add $t1, $t9, $t6         # temporary value to check wrap
+        bge $t1, $t5, WRAP        # if $t7 >= $t5 = 32 then WRAP
         j NOWRAP                  # jump to NOWRAP
       WRAP:
         sub $t7, $t7, $t5         # $t7 = $t7 - 32
-      NOWRAP:
-      	add $t7, $a0, $t7         # coordinate relative to $a0
-        add $t7, $t7, $t4         # $t7 = $t7 + $t4 = (unit) coordinate of current "cursor" position
+      NOWRAP:        
         sll $t7, $t7, 2           # $t7 = $t7 * 4 = offset
-        lw $t0, displayAddress    # $t0 stores the base address for display
         add $t7, $t0, $t7         # $t7 = $t0 + $t7,  actual address is relative to $t0
         sw $a3, 0($t7)            # paint the $t7 unit $a3 colour
         addi $t9, $t9, 1          # $t9 = $t9 + 1
