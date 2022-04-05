@@ -41,7 +41,15 @@
         color_frog:     .word 0xe10cf6
 
     # positions
-
+        frog:           .half 60
+        log1:           .half 17
+        log2:
+        log3:
+        log4:
+        car1:
+        car2:
+        car3:
+        car4:
 .text
 GAMELOOP:
         jal DRAW_BACKGROUND       # call function DRAW_BACKGROUND
@@ -68,11 +76,13 @@ GAMELOOP:
         jal DRAW_CAR
 
         # draw frog
-        li $a0, 912               # 32 * 28 + 16 = 912 default position
+        lh $a0, frog
+        jal CONVERT               # call CONVERT function
+        #li $a0, 912               # 32 * 28 + 16 = 912 default position
         jal DRAW_FROG             # draw frog at $a0
 
         li $v0, 32                # sleep
-        li $a0, 16                #   for 16 milliseconds before looping
+        li $a0, 500                #   for 160 milliseconds before looping
         syscall                   #   (achieving roughly 60 fps)
         j GAMELOOP
 Exit:
@@ -136,13 +146,13 @@ DRAW_RECTANGLE:                   # $a0, $a1, $a2, $a3 store the position addr, 
         lw $t0, displayAddress    # $t0 stores the base address for display
         add $t7, $a0, $t9         # $t7 = $a0 + $t9 = (unit) coordinate of current "cursor" position (before vertical displacement)
         add $t7, $t7, $t4         # $t7 = $t7 + $t4 = (unit) coordinate of current "cursor" position (after vertical displacement)
-        
+
         add $t1, $t9, $t6         # temporary value to check wrap
         bge $t1, $t5, WRAP        # if $t7 >= $t5 = 32 then WRAP
         j NOWRAP                  # jump to NOWRAP
       WRAP:
         sub $t7, $t7, $t5         # $t7 = $t7 - 32
-      NOWRAP:        
+      NOWRAP:
         sll $t7, $t7, 2           # $t7 = $t7 * 4 = offset
         add $t7, $t0, $t7         # $t7 = $t0 + $t7,  actual address is relative to $t0
         sw $a3, 0($t7)            # paint the $t7 unit $a3 colour
@@ -200,4 +210,14 @@ DRAW_CAR:                         # $a0 and $a1 store the position addr and widt
 
         lw $ra, 0($sp)            # restore return
         addi $sp, $sp, 4          #   address value
+        jr $ra                    # return
+
+CONVERT:                          # convert 8x8 tile position $a0 to 32x32 unit position (store value at same register)
+        li $t0, 8                 # 8 tiles per row
+        div $a0, $t0              # $a0 / 8
+        mflo  $t1                 # $t1 = floor($a0 / 8)
+        mfhi  $t2                 # $t2 = $a0 mod 8
+        sll $t1, $t1, 7           # 128 units per tile row
+        sll $t2, $t2, 2           # 4 units per top of each tile
+        add $a0, $t1, $t2         # $v0 is top left unit of corresponding tile in grid
         jr $ra                    # return
