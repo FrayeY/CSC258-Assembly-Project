@@ -18,9 +18,9 @@
 #
 # Which approved additional features have been implemented?
 # (See the assignment handout for the list of additional features)
-# 1. Displaying a pause screen or image when the ‘p’ key is pressed, and returning to the game when ‘p’ is pressed again. (TODO)
-# 2. Make the frog point in the direction that it’s traveling.
-# 3. Have objects in different rows move at different speeds. (TODO)
+# 1. Displaying a pause screen or image when the 'p' key is pressed, and returning to the game when 'p' is pressed again. (TODO)
+# 2. Make the frog point in the direction that it's traveling.
+# 3. Have objects in different rows move at different speeds.
 # ... (add more if necessary)
 #
 # Any additional information that the TA needs to know:
@@ -40,6 +40,7 @@
         color_car:      .word 0xfb1919
         color_frog:     .word 0xe10cf6
 
+        faded_safe:     .word 0x6f7e53
     # positions
         frog:           .half 60
         frogdir:        .byte 0   # 0 for up (default), 1 for left, 2 for down, 3 for right
@@ -52,11 +53,19 @@
         car3:           .half 51
         car4:           .half 55
 
+    # frequencies and counters to implement movement of obstacles
+        freq_log_row1:      .half 15
+        count_log_row1:     .half 0
+        freq_log_row2:      .half 12
+        count_log_row2:     .half 0
+        freq_car_row1:      .half 16
+        count_car_row1:     .half 0
+        freq_car_row2:      .half 9
+        count_car_row2:     .half 0
     # gamestates
         paused:         .byte 0   # whether the game is paused, 0 by default
 .text
 GAMELOOP:
-        jal DRAW_BACKGROUND       # call function DRAW_BACKGROUND
 
         # handle keyboard input
         lw $t8, 0xffff0000
@@ -65,7 +74,8 @@ GAMELOOP:
   KEYSTROKE:
         jal INPUT                 # call function to handle input in the event of a keystroke
   NOKEYSTROKE:
-
+        jal MOVE_OBSTACLES
+        jal DRAW_BACKGROUND       # call function DRAW_BACKGROUND
         jal DRAW_LOGS             # call function to draw 4 logs
         jal DRAW_CARS             # call function to draw 4 cars
         # draw frog
@@ -306,7 +316,7 @@ Exit:
           add $a0, $t1, $t2         # $v0 is top left unit of corresponding tile in grid
           jr $ra                    # return
 
-INPUT:
+INPUT:                              # function to execute relevant actions when a keystoke is detected
         lh $t1, frog                # load current frog position
         lw $t2, 0xffff0004          # load ASCII value of pressed key into $t2
         beq $t2, 0x70, respond_to_p
@@ -343,3 +353,89 @@ INPUT:
         j END_INPUT
   END_INPUT:
         jr $ra                      # return
+
+MOVE_OBSTACLE:                    # $a0, $a1(+1/-1), $a2, and $a3 store the address of the position, the direction, and the frequency of movement of the obstacle
+        lh $t0, 0($a0)
+        li $t9, 8                 # $t9 = 8
+        div $t0, $t9
+        mfhi $t1                  # $t1 = $t0 % 8 is the horizontal position of the obstacle
+        add $t0, $t0, $a1         # new position
+        add $t1, $t1, $a1         # new horizontal position
+        bgt $t1, 7, OVERFLOW_RIGHT
+        blt $t1, 0, OVERFLOW_LEFT
+        j NO_OVERFLOW
+  OVERFLOW_RIGHT:
+        addi $t0, $t0, -8
+        j NO_OVERFLOW
+  OVERFLOW_LEFT:
+        addi $t0, $t0, 8
+        j NO_OVERFLOW
+  NO_OVERFLOW:
+        sh $t0, 0($a0)            # store $a0 back at the $a0 address
+        jr $ra
+
+MOVE_OBSTACLES:
+        addi $sp, $sp, -4         # put $ra value
+        sw $ra, 0($sp)            #   onto stack
+
+        # log row 1
+        li $a1, 1                 # move to the right
+        lh $a2, freq_log_row1
+        lh $t3, count_log_row1    # counter value of log row 1
+        addi $t3, $t3, 1          # iterate $t3
+        bne $t3, $a2, END_LOG_ROW_1 # move the obstacle only when the counter value is equal to the frequency
+        li $t3, 0                 # reset $t3 back to 0
+        la $a0, log1              # load the address of the position of log1
+        jal MOVE_OBSTACLE
+        la $a0, log2              # load the address of the position of log2
+        jal MOVE_OBSTACLE
+  END_LOG_ROW_1:
+        sh $t3, count_log_row1    # store $t3 back at the counter address
+
+        # log row 2
+        li $a1, -1                 # move to the left
+        lh $a2, freq_log_row2
+        lh $t3, count_log_row2    # counter value of log row 2
+        addi $t3, $t3, 1          # iterate $t3
+        bne $t3, $a2, END_LOG_ROW_2 # move the obstacle only when the counter value is equal to the frequency
+        li $t3, 0                 # reset $t3 back to 0
+        la $a0, log3              # load the address of the position of log3
+        jal MOVE_OBSTACLE
+        la $a0, log4              # load the address of the position of log4
+        jal MOVE_OBSTACLE
+  END_LOG_ROW_2:
+        sh $t3, count_log_row2    # store $t3 back at the counter address
+
+
+        # car row 1
+        li $a1, -1                 # move to the right
+        lh $a2, freq_car_row1
+        lh $t3, count_car_row1    # counter value of car row 1
+        addi $t3, $t3, 1          # iterate $t3
+        bne $t3, $a2, END_CAR_ROW_1 # move the obstacle only when the counter value is equal to the frequency
+        li $t3, 0                 # reset $t3 back to 0
+        la $a0, car1              # load the address of the position of car1
+        jal MOVE_OBSTACLE
+        la $a0, car2              # load the address of the position of car2
+        jal MOVE_OBSTACLE
+  END_CAR_ROW_1:
+        sh $t3, count_car_row1    # store $t3 back at the counter address
+
+        # car row 2
+        li $a1, 1                 # move to the left
+        lh $a2, freq_car_row2
+        lh $t3, count_car_row2    # counter value of car row 2
+        addi $t3, $t3, 1          # iterate $t3
+        bne $t3, $a2, END_CAR_ROW_2 # move the obstacle only when the counter value is equal to the frequency
+        li $t3, 0                 # reset $t3 back to 0
+        la $a0, car3              # load the address of the position of car3
+        jal MOVE_OBSTACLE
+        la $a0, car4              # load the address of the position of car4
+        jal MOVE_OBSTACLE
+  END_CAR_ROW_2:
+        sh $t3, count_car_row2    # store $t3 back at the counter address
+
+
+        lw $ra, 0($sp)            # restore return
+        addi $sp, $sp, 4          #   address value
+        jr $ra                    # return
