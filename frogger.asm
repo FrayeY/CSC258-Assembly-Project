@@ -74,7 +74,7 @@ GAMELOOP:
   KEYSTROKE:
         jal INPUT                 # call function to handle input in the event of a keystroke
   NOKEYSTROKE:
-        # jal CHECK_COLLIDE
+        jal CHECK_COLLIDE
         jal MOVE_OBSTACLES
         jal DRAW_BACKGROUND       # call function DRAW_BACKGROUND
         jal DRAW_LOGS             # call function to draw 4 logs
@@ -439,14 +439,6 @@ MOVE_OBSTACLES:
         jal MOVE_OBSTACLE
         la $a0, car2              # load the address of the position of car2
         jal MOVE_OBSTACLE
-
-        lh $t5, frog              # position of frog
-        li $t9, 8                 # $t9 = 8 = tiles per row
-        div $t5, $t9
-        mflo $t6                  # $t6 = $t5 / 8 is the row of the frog
-        bne $t6, 5, END_LOG_CAR_1 # branch if frog not on this row
-        la $a0, frog              # load the address of the position of frog
-        jal MOVE_OBSTACLE
   END_CAR_ROW_1:
         sh $t3, count_car_row1    # store $t3 back at the counter address
 
@@ -461,14 +453,6 @@ MOVE_OBSTACLES:
         jal MOVE_OBSTACLE
         la $a0, car4              # load the address of the position of car4
         jal MOVE_OBSTACLE
-
-        lh $t5, frog              # position of frog
-        li $t9, 8                 # $t9 = 8 = tiles per row
-        div $t5, $t9
-        mflo $t6                  # $t6 = $t5 / 8 is the row of the frog
-        bne $t6, 6, END_LOG_CAR_2 # branch if frog not on this row
-        la $a0, frog              # load the address of the position of frog
-        jal MOVE_OBSTACLE
   END_CAR_ROW_2:
         sh $t3, count_car_row2    # store $t3 back at the counter address
 
@@ -477,35 +461,72 @@ MOVE_OBSTACLES:
         addi $sp, $sp, 4          #   address value
         jr $ra                    # return
 
-# CHECK_COLLIDE:
-#         lh $t0, frog                # location of frog
-#         li $t9, 8                   # tiles per row
-#         div $t0, $t9
-#         mflo $t1                    # $t1 = $t0 / 8 = row frog is on
-#         mflo $t2                    # $t1 = $t0 % 8 = column frog is on
-#         ble $t1, 1, ON_GOAL         # frog is in goal region
-#         beq $t1, 2, ON_LOG_ROW_1    # frog is on log row 1
-#         beq $t1, 3, ON_LOG_ROW_2    # frog is on log row 2
-#         beq $t1, 5, ON_CAR_ROW_1    # frog is on car row 1
-#         beq $t1, 6, ON_CAR_ROW_2    # frog is on car row 2
-#         j CHECK_END
-#   ON_LOG_ROW_1:
-#         lh $t7, log1                # position of first log on row 1
-#         lh $t8, log2                # position of second log on row 1
-#         addi $t5, $t0, -1           # tile left of frog
-#         beq $t5, $t7, ALIVE_LR1
-#         beq $t5, $t8, ALIVE_LR1
-#         addi $t5, $t0, 0            # tile of frog
-#         beq $t5, $t7, ALIVE_LR1
-#         beq $t5, $t8, ALIVE_LR1
-#         addi $t5, $t0, 0            # tile right of frog
-#         beq $t5, $t7, ALIVE_LR1
-#         beq $t5, $t8, ALIVE_LR1
-#         j DEAD                      # frog not on any log on this row
-#     ALIVE_LR1:
-#         j CHECK_END
-#   DEAD:
-#         li $t0, 60                  # default location of frog
-#         sh $t0, frog                # set location of frog
-#   CHECK_END:
-#         jr $ra                      # return
+CHECK_COLLIDE:
+        lh $t0, frog                # location of frog
+        li $t9, 8                   # tiles per row
+        div $t0, $t9
+        mflo $t1                    # $t1 = $t0 / 8 = row frog is on
+        mflo $t2                    # $t1 = $t0 % 8 = column frog is on
+        # ble $t1, 1, ON_GOAL         # frog is in goal region
+        beq $t1, 2, ON_LOG_ROW_1    # frog is on log row 1
+        beq $t1, 3, ON_LOG_ROW_2    # frog is on log row 2
+        beq $t1, 5, ON_CAR_ROW_1    # frog is on car row 1
+        beq $t1, 6, ON_CAR_ROW_2    # frog is on car row 2
+        j CHECK_END
+  ON_LOG_ROW_1:
+        lh $t7, log1                # position of first log on log row 1
+        lh $t8, log2                # position of second log on log row 1
+        addi $t5, $t0, -1           # tile left of frog
+        beq $t5, $t7, CHECK_END
+        beq $t5, $t8, CHECK_END
+        addi $t5, $t0, 0            # tile of frog
+        beq $t5, $t7, CHECK_END
+        beq $t5, $t8, CHECK_END
+        addi $t5, $t0, 0            # tile right of frog
+        beq $t5, $t7, CHECK_END
+        beq $t5, $t8, CHECK_END
+        j DEAD                      # frog not on any log on this row
+  ON_LOG_ROW_2:
+        lh $t7, log3                # position of first log on log row 2
+        lh $t8, log4                # position of second log on log row 2
+        addi $t5, $t0, -1           # tile left of frog
+        beq $t5, $t7, CHECK_END
+        beq $t5, $t8, CHECK_END
+        addi $t5, $t0, 0            # tile of frog
+        beq $t5, $t7, CHECK_END
+        beq $t5, $t8, CHECK_END
+        addi $t5, $t0, 0            # tile right of frog
+        beq $t5, $t7, CHECK_END
+        beq $t5, $t8, CHECK_END
+        j DEAD                      # frog not on any log on this row
+  ON_CAR_ROW_1:
+        lh $t7, car1                # position of first car on car row 1
+        lh $t8, car2                # position of second car on car row 1
+        addi $t5, $t0, -1           # tile left of frog
+        beq $t5, $t7, DEAD
+        beq $t5, $t8, DEAD
+        addi $t5, $t0, 0            # tile of frog
+        beq $t5, $t7, DEAD
+        beq $t5, $t8, DEAD
+        addi $t5, $t0, 0            # tile right of frog
+        beq $t5, $t7, DEAD
+        beq $t5, $t8, DEAD
+        j CHECK_END                 # frog not on any car on this row
+  ON_CAR_ROW_2:
+        lh $t7, car3                # position of first car on car row 2
+        lh $t8, car4                # position of second car on car row 2
+        addi $t5, $t0, -1           # tile left of frog
+        beq $t5, $t7, DEAD
+        beq $t5, $t8, DEAD
+        addi $t5, $t0, 0            # tile of frog
+        beq $t5, $t7, DEAD
+        beq $t5, $t8, DEAD
+        addi $t5, $t0, 0            # tile right of frog
+        beq $t5, $t7, DEAD
+        beq $t5, $t8, DEAD
+        j CHECK_END                 # frog not on any car on this row
+  DEAD:
+        li $t0, 60                  # default location of frog
+        sh $t0, frog                # set location of frog
+  CHECK_END:
+        jr $ra                      # return
