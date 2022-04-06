@@ -14,14 +14,14 @@
 #
 # Which milestone is reached in this submission?
 # (See the assignment handout for descriptions of the milestones)
-# - Milestone 1
+# - Milestone 5
 #
 # Which approved additional features have been implemented?
 # (See the assignment handout for the list of additional features)
-# 1. Displaying a pause screen or image when the 'p' key is pressed, and returning to the game when 'p' is pressed again. (TODO)
+# 1. Displaying a pause screen or image when the 'p' key is pressed, and returning to the game when 'p' is pressed again.
 # 2. Make the frog point in the direction that it's traveling.
 # 3. Have objects in different rows move at different speeds.
-# ... (add more if necessary)
+# 4. After final player death, display game over/retry screen. Restart the game if the "retry" option is chosen.
 #
 # Any additional information that the TA needs to know:
 # - (write here, if any)
@@ -41,6 +41,14 @@
         color_frog:     .word 0xe10cf6
 
         faded_safe:     .word 0x6f7e53
+        faded_water:    .word 0x5e8b99
+        faded_log:      .word 0x5c483a
+        faded_middle:   .word 0xb0a485
+        faded_road:     .word 0x555555
+        faded_car:      .word 0xa66e6e
+        faded_frog:     .word 0x99649e
+
+        filled_goal:    .word 0xffd700
     # positions
         frog:           .half 60
         frogdir:        .byte 0   # 0 for up (default), 1 for left, 2 for down, 3 for right
@@ -52,7 +60,6 @@
         car2:           .half 44
         car3:           .half 51
         car4:           .half 55
-
     # frequencies and counters to implement movement of obstacles
         freq_log_row1:  .half 15
         count_log_row1: .half 0
@@ -63,7 +70,13 @@
         freq_car_row2:  .half 9
         count_car_row2: .half 0
     # gamestates
-        paused:         .byte 0   # whether the game is paused, 0 by default
+        # paused:         .byte 0   # whether the game is paused, 0 by default
+        lives:          .byte 3   # number of lives left, initialized to 3
+        goal1:          .byte 0   # whether a frog has reached this goal region (tile 8)
+        goal2:          .byte 0   # whether a frog has reached this goal region (tile 10)
+        goal3:          .byte 0   # whether a frog has reached this goal region (tile 12)
+        goal4:          .byte 0   # whether a frog has reached this goal region (tile 13)
+        goal5:          .byte 0   # whether a frog has reached this goal region (tile 15)
 
 .text
 GAMELOOP:
@@ -74,15 +87,17 @@ GAMELOOP:
   KEYSTROKE:
         jal INPUT                 # call function to handle input in the event of a keystroke
   NOKEYSTROKE:
-        jal CHECK_COLLIDE
-        jal MOVE_OBSTACLES
+        jal CHECK_COLLIDE         # check for collisions
+        jal MOVE_OBSTACLES        # move obstacles which should move this cycle
         jal DRAW_BACKGROUND       # call function DRAW_BACKGROUND
+        jal DRAW_FILLED_GOALS     # call function to draw goals which are filled
         jal DRAW_LOGS             # call function to draw 4 logs
         jal DRAW_CARS             # call function to draw 4 cars
         # draw frog
         lh $a0, frog              # load location of frog
         jal CONVERT               # call CONVERT function
         jal DRAW_FROG             # draw frog at its location
+        jal CHECK_WIN
 
         li $v0, 32                # sleep syscall
         li $a0, 140               #   for 140 milliseconds before looping
@@ -97,15 +112,222 @@ GAMELOOP:
         j PAUSELOOP
     UNPAUSE:
         j GAMELOOP
-Exit:
+LOSE:
+        # end/restart page
+        li $a0, 0
+        li $a1, 32                # width is 32
+        li $a2, 32                # height is 32
+        li $a3, 0xff0000          # red color
+        jal DRAW_RECTANGLE        # draw rectangle
+  LOSELOOP:
+        # handle keyboard input
+        lw $t8, 0xffff0000
+        bne $t8, 1, LOSELOOP
+        lw $t2, 0xffff0004        # load ASCII value of pressed key into $t2
+        beq $t2, 0x65, END        # if 'e' pressed, end
+        beq $t2, 0x72, RESTART    # if 'r' pressed, restart
+        j LOSELOOP
+WIN:
+        # win page
+        li $a0, 0
+        li $a1, 32                # width is 32
+        li $a2, 32                # height is 32
+        li $a3, 0xffd700          # gold color
+        jal DRAW_RECTANGLE        # draw rectangle
+        j END
+END:
         li $v0, 32                # sleep syscall
         li $a0, 5000              #   for 5000 milliseconds before terminating
         syscall
         li $v0, 10                # terminate the program gracefully
         syscall
-
-
+RESTART:
+        li $t0, 3                 # default number of lives
+        sb $t0, lives             # reset to 3 lives
+        li $t0, 60                # default location of frog
+        sh $t0, frog              # set location of frog
+        j GAMELOOP
 # drawing functions
+  DRAW_PAUSE_BACKGROUND:
+        addi $sp, $sp, -4         # put $ra value
+        sw $ra, 0($sp)            #   onto stack
+
+        # Goal region
+        li $a0, 0                 # goal region starts in the top left
+        li $a1, 32                # width is 32
+        li $a2, 8                 # height is 8
+        lw $a3, faded_safe        # goal region color
+        jal DRAW_RECTANGLE        # draw rectangle
+
+        # Water region
+        li $a0, 256               # water region starts on the third big row
+        li $a1, 32                # width is 32
+        li $a2, 8                 # height is 8
+        lw $a3, faded_water       # water region color
+        jal DRAW_RECTANGLE        # draw rectangle
+
+        # Middle safe region
+        li $a0, 512               # middle region starts on the fifth big row
+        li $a1, 32                # width is 32
+        li $a2, 4                 # height is 4
+        lw $a3, faded_middle      # middle safe region color
+        jal DRAW_RECTANGLE        # draw rectangle
+
+        # Road region
+        li $a0, 640               # road region starts on the sixth big row
+        li $a1, 32                # width is 32
+        li $a2, 8                 # height is 8
+        lw $a3, faded_road        # road region color
+        jal DRAW_RECTANGLE        # draw rectangle
+
+        # Start region
+        li $a0, 896               # start region starts on the eighth big row
+        li $a1, 32                # width is 32
+        li $a2, 8                 # height is 8
+        lw $a3, faded_safe        # road region color
+        jal DRAW_RECTANGLE        # draw rectangle
+
+        lw $ra, 0($sp)            # restore return
+        addi $sp, $sp, 4          #   address value
+        jr $ra                    # return
+  DRAW_PAUSE_FROG:                # both the position addr and direction of the frog are stored as variables
+          addi $sp, $sp, -4         # put $ra value
+          sw $ra, 0($sp)            #   onto stack
+
+          lw $t0, displayAddress    # $t0 stores the base address for display
+          sll $t1, $a0, 2           # $t1 = $a0 * 4 = offset
+          add $t0, $t0, $t1         # $t0 stores the base address of the frog
+          lw $t2, faded_frog        # $t2 stores the color of the frog
+          lb $t3, frogdir           # $t3 stores the direction of the frog
+          beq $t3, 0, DRAW_PAUSE_FROG_UP
+          beq $t3, 1, DRAW_PAUSE_FROG_LEFT
+          beq $t3, 2, DRAW_PAUSE_FROG_DOWN
+          beq $t3, 3, DRAW_PAUSE_FROG_RIGHT
+          j END_DRAW_PAUSE_DIRECTION
+    DRAW_PAUSE_FROG_UP:
+          sw $t2, 0($t0)            # first row |x--x|
+          sw $t2, 12($t0)
+          sw $t2, 128($t0)          # second row |xxxx|
+          sw $t2, 132($t0)
+          sw $t2, 136($t0)
+          sw $t2, 140($t0)
+          sw $t2, 260($t0)          # third row |-xx-|
+          sw $t2, 264($t0)
+          sw $t2, 384($t0)          # fourth row |xxxx|
+          sw $t2, 388($t0)
+          sw $t2, 392($t0)
+          sw $t2, 396($t0)
+          j END_DRAW_PAUSE_DIRECTION
+    DRAW_PAUSE_FROG_LEFT:
+          sw $t2, 0($t0)            # first row |xx-x|
+          sw $t2, 4($t0)
+          sw $t2, 12($t0)
+          sw $t2, 132($t0)          # second row |-xxx|
+          sw $t2, 136($t0)
+          sw $t2, 140($t0)
+          sw $t2, 260($t0)          # third row |-xxx|
+          sw $t2, 264($t0)
+          sw $t2, 268($t0)
+          sw $t2, 384($t0)          # fourth row |xx-x|
+          sw $t2, 388($t0)
+          sw $t2, 396($t0)
+          j END_DRAW_PAUSE_DIRECTION
+    DRAW_PAUSE_FROG_DOWN:
+          sw $t2, 0($t0)            # first row |xxxx|
+          sw $t2, 4($t0)
+          sw $t2, 8($t0)
+          sw $t2, 12($t0)
+          sw $t2, 132($t0)          # second row |-xx-|
+          sw $t2, 136($t0)
+          sw $t2, 256($t0)          # third row |xxxx|
+          sw $t2, 260($t0)
+          sw $t2, 264($t0)
+          sw $t2, 268($t0)
+          sw $t2, 384($t0)          # fourth row |x--x|
+          sw $t2, 396($t0)
+          j END_DRAW_PAUSE_DIRECTION
+    DRAW_PAUSE_FROG_RIGHT:
+          sw $t2, 0($t0)            # first row |x-xx|
+          sw $t2, 8($t0)
+          sw $t2, 12($t0)
+          sw $t2, 128($t0)          # second row |xxx-|
+          sw $t2, 132($t0)
+          sw $t2, 136($t0)
+          sw $t2, 256($t0)          # third row |xxx-|
+          sw $t2, 260($t0)
+          sw $t2, 264($t0)
+          sw $t2, 384($t0)          # fourth row |x-xx|
+          sw $t2, 392($t0)
+          sw $t2, 396($t0)
+          j END_DRAW_PAUSE_DIRECTION
+    END_DRAW_PAUSE_DIRECTION:
+          lw $ra, 0($sp)            # restore return
+          addi $sp, $sp, 4          #   address value
+          jr $ra                    # return
+  DRAW_PAUSE_LOG:                 # $a0 and $a1 store the position addr and width of the log respectively
+          addi $sp, $sp, -4         # put $ra value
+          sw $ra, 0($sp)            #   onto stack
+
+          li $a2, 4                 # height of log is always 4
+          lw $a3, faded_log         # log color
+          jal DRAW_RECTANGLE        # draw log as rectangle, $a0 and $a1 are set already by the caller
+
+          lw $ra, 0($sp)            # restore return
+          addi $sp, $sp, 4          #   address value
+          jr $ra                    # return
+  DRAW_PAUSE_LOGS:
+          addi $sp, $sp, -4         # put $ra value
+          sw $ra, 0($sp)            #   onto stack
+
+          li $a1, 8                 # width of log is 8
+          lh $a0, log1              # load location of log1
+          jal CONVERT               # call CONVERT function
+          jal DRAW_PAUSE_LOG
+          lh $a0, log2              # load location of log2
+          jal CONVERT               # call CONVERT function
+          jal DRAW_PAUSE_LOG
+          lh $a0, log3              # load location of log3
+          jal CONVERT               # call CONVERT function
+          jal DRAW_PAUSE_LOG
+          lh $a0, log4              # load location of log4
+          jal CONVERT               # call CONVERT function
+          jal DRAW_PAUSE_LOG
+
+          lw $ra, 0($sp)            # restore return
+          addi $sp, $sp, 4          #   address value
+          jr $ra                    # return
+  DRAW_PAUSE_CAR:                 # $a0 and $a1 store the position addr and width of the car respectively
+          addi $sp, $sp, -4         # put $ra value
+          sw $ra, 0($sp)            #   onto stack
+
+          li $a2, 4                 # height of log is always 4
+          lw $a3, faded_car         # car color
+          jal DRAW_RECTANGLE        # draw car as rectangle, $a0 and $a1 are set already by the caller
+
+          lw $ra, 0($sp)            # restore return
+          addi $sp, $sp, 4          #   address value
+          jr $ra                    # return
+  DRAW_PAUSE_CARS:
+          addi $sp, $sp, -4         # put $ra value
+          sw $ra, 0($sp)            #   onto stack
+
+          li $a1, 8                 # width of car is 8
+          lh $a0, car1              # load location of car1
+          jal CONVERT               # call CONVERT function
+          jal DRAW_PAUSE_CAR
+          lh $a0, car2              # load location of car2
+          jal CONVERT               # call CONVERT function
+          jal DRAW_PAUSE_CAR
+          lh $a0, car3              # load location of car3
+          jal CONVERT               # call CONVERT function
+          jal DRAW_PAUSE_CAR
+          lh $a0, car4              # load location of car4
+          jal CONVERT               # call CONVERT function
+          jal DRAW_PAUSE_CAR
+
+          lw $ra, 0($sp)            # restore return
+          addi $sp, $sp, 4          #   address value
+          jr $ra                    # return
   DRAW_BACKGROUND:
           addi $sp, $sp, -4         # put $ra value
           sw $ra, 0($sp)            #   onto stack
@@ -148,7 +370,7 @@ Exit:
           lw $ra, 0($sp)            # restore return
           addi $sp, $sp, 4          #   address value
           jr $ra                    # return
-  DRAW_RECTANGLE:                   # $a0, $a1, $a2, $a3 store the position addr, width, height, and color of the rectangle respectively
+  DRAW_RECTANGLE:                 # $a0, $a1, $a2, $a3 store the position addr, width, height, and color of the rectangle respectively
           li $t8, 0                 # vertical iteration index $t8 = 0
           li $t5, 32                # units per horizontal line
           div $a0, $t5              # position addr / 32
@@ -179,7 +401,7 @@ Exit:
           j VERTICAL_LOOP           # jump back to start of loop
     VERTICAL_END:
           jr $ra                    # return
-  DRAW_FROG:                        # both the position addr and direction of the frog are stored as variables
+  DRAW_FROG:                      # both the position addr and direction of the frog are stored as variables
           addi $sp, $sp, -4         # put $ra value
           sw $ra, 0($sp)            #   onto stack
 
@@ -255,7 +477,7 @@ Exit:
           lw $ra, 0($sp)            # restore return
           addi $sp, $sp, 4          #   address value
           jr $ra                    # return
-  DRAW_LOG:                         # $a0 and $a1 store the position addr and width of the log respectively
+  DRAW_LOG:                       # $a0 and $a1 store the position addr and width of the log respectively
           addi $sp, $sp, -4         # put $ra value
           sw $ra, 0($sp)            #   onto stack
 
@@ -287,7 +509,7 @@ Exit:
           lw $ra, 0($sp)            # restore return
           addi $sp, $sp, 4          #   address value
           jr $ra                    # return
-  DRAW_CAR:                         # $a0 and $a1 store the position addr and width of the car respectively
+  DRAW_CAR:                       # $a0 and $a1 store the position addr and width of the car respectively
           addi $sp, $sp, -4         # put $ra value
           sw $ra, 0($sp)            #   onto stack
 
@@ -319,7 +541,7 @@ Exit:
           lw $ra, 0($sp)            # restore return
           addi $sp, $sp, 4          #   address value
           jr $ra                    # return
-  CONVERT:                          # convert 8x8 tile position $a0 to 32x32 unit position (store value at same register)
+  CONVERT:                        # convert 8x8 tile position $a0 to 32x32 unit position (store value at same register)
           li $t0, 8                 # 8 tiles per row
           div $a0, $t0              # $a0 / 8
           mflo  $t1                 # $t1 = floor($a0 / 8)
@@ -328,8 +550,43 @@ Exit:
           sll $t2, $t2, 2           # 4 units per top of each tile
           add $a0, $t1, $t2         # $v0 is top left unit of corresponding tile in grid
           jr $ra                    # return
+  DRAW_FILLED_GOALS:
+        addi $sp, $sp, -4         # put $ra value
+        sw $ra, 0($sp)            #   onto stack
+        li $a1, 4                 # width is 4
+        li $a2, 2                 # height is 2
+        lw $a3, filled_goal       # filled goal region color
 
-INPUT:                              # function to execute relevant actions when a keystoke is detected
+        lb $t1, goal1
+        bne $t1, 1, NO_GOAL_1
+        li $a0, 128
+        jal DRAW_RECTANGLE        # draw rectangle
+    NO_GOAL_1:
+        lb $t2, goal2
+        bne $t2, 1, NO_GOAL_2
+        li $a0, 136
+        jal DRAW_RECTANGLE        # draw rectangle
+    NO_GOAL_2:
+        lb $t3, goal3
+        bne $t3, 1, NO_GOAL_3
+        li $a0, 144
+        jal DRAW_RECTANGLE        # draw rectangle
+    NO_GOAL_3:
+        lb $t4, goal4
+        bne $t4, 1, NO_GOAL_4
+        li $a0, 148
+        jal DRAW_RECTANGLE        # draw rectangle
+    NO_GOAL_4:
+        lb $t5, goal5
+        bne $t5, 1, NO_GOAL_5
+        li $a0, 156
+        jal DRAW_RECTANGLE        # draw rectangle
+    NO_GOAL_5:
+
+        lw $ra, 0($sp)            # restore return
+        addi $sp, $sp, 4          #   address value
+        jr $ra                    # return
+INPUT:                            # function to execute relevant actions when a keystoke is detected
         lh $t1, frog                # load current frog position
         lw $t2, 0xffff0004          # load ASCII value of pressed key into $t2
         beq $t2, 0x70, respond_to_p
@@ -339,19 +596,9 @@ INPUT:                              # function to execute relevant actions when 
         beq $t2, 0x64, respond_to_d
         j END_INPUT                 # if none of branch cases match, invalid input, ignore
   respond_to_p:
-        li $a0, 0
-        li $a1, 32
-        li $a2, 4
-        li $a3, 0xc0d0c0           # pause color
-        li $a0, 896
-        li $a1, 32
-        li $a2, 4
-        li $a3, 0xc0d0c0           # pause color
-        li $a0, 128
-        li $a1, 32
-        li $a2, 24
-        li $a3, 0xffd700           # pause color
-        jal DRAW_RECTANGLE         # draw rectangle
+        jal DRAW_PAUSE_BACKGROUND
+        jal DRAW_PAUSE_LOGS
+        jal DRAW_PAUSE_CARS
         j PAUSELOOP
   respond_to_w:
         li $t3, 0                   # frogdir = 0 indicates upward direction
@@ -482,20 +729,68 @@ MOVE_OBSTACLES:
         addi $sp, $sp, 4          #   address value
         jr $ra                    # return
 
+CHECK_WIN:
+        lb $t1, goal1
+        lb $t2, goal2
+        lb $t3, goal3
+        lb $t4, goal4
+        lb $t5, goal5
+        bne $t1, 1, NOT_WIN
+        bne $t2, 1, NOT_WIN
+        bne $t3, 1, NOT_WIN
+        bne $t4, 1, NOT_WIN
+        bne $t5, 1, NOT_WIN
+        j WIN
+  NOT_WIN:
+        jr $ra
 CHECK_COLLIDE:
-        lh $t0, frog                # location of frog
-        li $t9, 8                   # tiles per row
+        lh $t0, frog              # location of frog
+        li $t9, 8                 # tiles per row
         div $t0, $t9
-        mflo $t1                    # $t1 = $t0 / 8 = row frog is on
-        mflo $t2                    # $t1 = $t0 % 8 = column frog is on
-        # ble $t1, 1, ON_GOAL         # frog is in goal region
-        beq $t1, 2, ON_LOG_ROW_1    # frog is on log row 1
-        beq $t1, 3, ON_LOG_ROW_2    # frog is on log row 2
-        beq $t1, 5, ON_CAR_ROW_1    # frog is on car row 1
-        beq $t1, 6, ON_CAR_ROW_2    # frog is on car row 2
+        mflo $t1                  # $t1 = $t0 / 8 = row frog is on
+        mfhi $t2                  # $t2 = $t0 % 8 = column frog is on
+        ble $t1, 1, ON_GOAL       # frog is in goal region
+        beq $t1, 2, ON_LOG_ROW_1  # frog is on log row 1
+        beq $t1, 3, ON_LOG_ROW_2  # frog is on log row 2
+        beq $t1, 5, ON_CAR_ROW_1  # frog is on car row 1
+        beq $t1, 6, ON_CAR_ROW_2  # frog is on car row 2
         j CHECK_END
   ON_GOAL:
-
+        beq $t2, 0, GOAL1
+        beq $t2, 2, GOAL2
+        beq $t2, 4, GOAL3
+        beq $t2, 5, GOAL4
+        beq $t2, 7, GOAL5
+        j CHECK_END
+    GOAL1:
+        li $t9, 1
+        sb $t9, goal1
+        li $t0, 60                # default location of frog
+        sh $t0, frog              # set location of frog
+        j CHECK_END
+    GOAL2:
+        li $t9, 1
+        sb $t9, goal2
+        li $t0, 60                # default location of frog
+        sh $t0, frog              # set location of frog
+        j CHECK_END
+    GOAL3:
+        li $t9, 1
+        sb $t9, goal3
+        li $t0, 60                # default location of frog
+        sh $t0, frog              # set location of frog
+        j CHECK_END
+    GOAL4:
+        li $t9, 1
+        sb $t9, goal4
+        li $t0, 60                # default location of frog
+        sh $t0, frog              # set location of frog
+        j CHECK_END
+    GOAL5:
+        li $t9, 1
+        sb $t9, goal5
+        li $t0, 60                # default location of frog
+        sh $t0, frog              # set location of frog
         j CHECK_END
   ON_LOG_ROW_1:
         lh $t7, log1                # position of first log on log row 1
@@ -550,7 +845,11 @@ CHECK_COLLIDE:
         beq $t5, $t8, DEAD
         j CHECK_END                 # frog not on any car on this row
   DEAD:
+        lb $t6, lives               # number of lives
+        addi $t6, $t6, -1           # decrement lives
+        sb $t6, lives               # set lives
         li $t0, 60                  # default location of frog
         sh $t0, frog                # set location of frog
+        beq $t6, 0, LOSE            # zero lives, game over
   CHECK_END:
-        jr $ra                      # return
+        jr $ra                    # return
