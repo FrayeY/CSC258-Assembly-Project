@@ -71,9 +71,9 @@ GAMELOOP:
         # draw frog
         lh $a0, frog              # load location of frog
         jal CONVERT               # call CONVERT function
-        jal DRAW_FROG             # draw frog at $a0
+        jal DRAW_FROG             # draw frog at its location
 
-        li $v0, 32                # sleep
+        li $v0, 32                # sleep syscall
         li $a0, 140               #   for 140 milliseconds before looping
         syscall                   #   (achieving roughly 6 fps)
         j GAMELOOP
@@ -156,28 +156,53 @@ Exit:
           j VERTICAL_LOOP           # jump back to start of loop
     VERTICAL_END:
           jr $ra                    # return
-  DRAW_FROG:                        # $a0 and $a1 store the position addr and direction (TODO) of the frog respectively
+  DRAW_FROG:                        # both the position addr and direction (TODO) of the frog are stored as variables
+          addi $sp, $sp, -4         # put $ra value
+          sw $ra, 0($sp)            #   onto stack
+
           lw $t0, displayAddress    # $t0 stores the base address for display
+          # lh $a0, frog              # position of frog
+          # jal CONVERT               # convert grid position to unit position
           sll $t1, $a0, 2           # $t1 = $a0 * 4 = offset
           add $t0, $t0, $t1         # $t0 stores the base address of the frog
-          lw $t2, color_frog        # $t1 stores the color of the frog
-
+          lw $t2, color_frog        # $t2 stores the color of the frog
+          lb $t3, frogdir           # $t3 stores the direction of the frog
+          beq $t3, 0, DRAW_FROG_UP
+          beq $t3, 1, DRAW_FROG_LEFT
+          beq $t3, 2, DRAW_FROG_UP
+          beq $t3, 3, DRAW_FROG_UP
+          j END_DRAW_DIRECTION
+    DRAW_FROG_UP:
           sw $t2, 0($t0)            # first row |x__x|
           sw $t2, 12($t0)
-
           sw $t2, 128($t0)          # second row |xxxx|
           sw $t2, 132($t0)
           sw $t2, 136($t0)
           sw $t2, 140($t0)
-
           sw $t2, 260($t0)          # third row |_xx_|
           sw $t2, 264($t0)
-
           sw $t2, 384($t0)          # fourth row |xxxx|
           sw $t2, 388($t0)
           sw $t2, 392($t0)
           sw $t2, 396($t0)
-
+          j END_DRAW_DIRECTION
+    DRAW_FROG_LEFT:
+          sw $t2, 0($t0)            # first row |xx_x|
+          sw $t2, 4($t0)
+          sw $t2, 12($t0)
+          sw $t2, 132($t0)          # second row |_xxx|
+          sw $t2, 136($t0)
+          sw $t2, 140($t0)
+          sw $t2, 260($t0)          # third row |_xxx|
+          sw $t2, 264($t0)
+          sw $t2, 268($t0)
+          sw $t2, 384($t0)          # fourth row |xx_x|
+          sw $t2, 388($t0)
+          sw $t2, 396($t0)
+          j END_DRAW_DIRECTION
+    END_DRAW_DIRECTION:
+          lw $ra, 0($sp)            # restore return
+          addi $sp, $sp, 4          #   address value
           jr $ra                    # return
   DRAW_LOG:                         # $a0 and $a1 store the position addr and width of the log respectively
           addi $sp, $sp, -4         # put $ra value
