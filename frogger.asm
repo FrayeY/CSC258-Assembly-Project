@@ -43,47 +43,54 @@
     # positions
         frog:           .half 60
         log1:           .half 17
-        log2:
-        log3:
-        log4:
-        car1:
-        car2:
-        car3:
-        car4:
+        log2:           .half 21
+        log3:           .half 26
+        log4:           .half 30
+        car1:           .half 40
+        car2:           .half 44
+        car3:           .half 51
+        car4:           .half 55
 .text
 GAMELOOP:
         jal DRAW_BACKGROUND       # call function DRAW_BACKGROUND
         # draw logs
         li $a1, 8                 # width of log is 8
-        li $a0, 260
+        lh $a0, log1              # load location of log1
+        jal CONVERT               # call CONVERT function
         jal DRAW_LOG
-        li $a0, 276
+        lh $a0, log2              # load location of log2
+        jal CONVERT               # call CONVERT function
         jal DRAW_LOG
-        li $a0, 392
+        lh $a0, log3              # load location of log3
+        jal CONVERT               # call CONVERT function
         jal DRAW_LOG
-        li $a0, 408
+        lh $a0, log4              # load location of log4
+        jal CONVERT               # call CONVERT function
         jal DRAW_LOG
 
         # draw cars
         li $a1, 8                 # width of car is 8
-        li $a0, 640
+        lh $a0, car1              # load location of car1
+        jal CONVERT               # call CONVERT function
         jal DRAW_CAR
-        li $a0, 656
+        lh $a0, car2              # load location of car2
+        jal CONVERT               # call CONVERT function
         jal DRAW_CAR
-        li $a0, 780
+        lh $a0, car3              # load location of car3
+        jal CONVERT               # call CONVERT function
         jal DRAW_CAR
-        li $a0, 796
+        lh $a0, car4              # load location of car4
+        jal CONVERT               # call CONVERT function
         jal DRAW_CAR
 
         # draw frog
-        lh $a0, frog
+        lh $a0, frog              # load location of frog
         jal CONVERT               # call CONVERT function
-        #li $a0, 912               # 32 * 28 + 16 = 912 default position
         jal DRAW_FROG             # draw frog at $a0
 
         li $v0, 32                # sleep
-        li $a0, 500                #   for 160 milliseconds before looping
-        syscall                   #   (achieving roughly 60 fps)
+        li $a0, 140               #   for 140 milliseconds before looping
+        syscall                   #   (achieving roughly 6 fps)
         j GAMELOOP
 Exit:
         li $v0, 10                # terminate the program gracefully
