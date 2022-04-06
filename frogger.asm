@@ -64,9 +64,9 @@
         count_car_row2: .half 0
     # gamestates
         paused:         .byte 0   # whether the game is paused, 0 by default
+
 .text
 GAMELOOP:
-
         # handle keyboard input
         lw $t8, 0xffff0000
         beq $t8, 1, KEYSTROKE
@@ -88,11 +88,19 @@ GAMELOOP:
         li $a0, 140               #   for 140 milliseconds before looping
         syscall                   #   (achieving roughly 6 fps)
         j GAMELOOP
-  PAUSE:
   PAUSELOOP:
-
+        # handle keyboard input
+        lw $t8, 0xffff0000
+        bne $t8, 1, PAUSELOOP
+        lw $t2, 0xffff0004        # load ASCII value of pressed key into $t2
+        beq $t2, 0x70, UNPAUSE    # if 'p' pressed, unpause
         j PAUSELOOP
+    UNPAUSE:
+        j GAMELOOP
 Exit:
+        li $v0, 32                # sleep syscall
+        li $a0, 5000              #   for 5000 milliseconds before terminating
+        syscall
         li $v0, 10                # terminate the program gracefully
         syscall
 
@@ -331,7 +339,20 @@ INPUT:                              # function to execute relevant actions when 
         beq $t2, 0x64, respond_to_d
         j END_INPUT                 # if none of branch cases match, invalid input, ignore
   respond_to_p:
-        j END_INPUT                 # TODO
+        li $a0, 0
+        li $a1, 32
+        li $a2, 4
+        li $a3, 0xc0d0c0           # pause color
+        li $a0, 896
+        li $a1, 32
+        li $a2, 4
+        li $a3, 0xc0d0c0           # pause color
+        li $a0, 128
+        li $a1, 32
+        li $a2, 24
+        li $a3, 0xffd700           # pause color
+        jal DRAW_RECTANGLE         # draw rectangle
+        j PAUSELOOP
   respond_to_w:
         li $t3, 0                   # frogdir = 0 indicates upward direction
         addi $t1, $t1, -8           # -8 from position
@@ -472,6 +493,9 @@ CHECK_COLLIDE:
         beq $t1, 3, ON_LOG_ROW_2    # frog is on log row 2
         beq $t1, 5, ON_CAR_ROW_1    # frog is on car row 1
         beq $t1, 6, ON_CAR_ROW_2    # frog is on car row 2
+        j CHECK_END
+  ON_GOAL:
+
         j CHECK_END
   ON_LOG_ROW_1:
         lh $t7, log1                # position of first log on log row 1
