@@ -54,14 +54,14 @@
         car4:           .half 55
 
     # frequencies and counters to implement movement of obstacles
-        freq_log_row1:      .half 15
-        count_log_row1:     .half 0
-        freq_log_row2:      .half 12
-        count_log_row2:     .half 0
-        freq_car_row1:      .half 16
-        count_car_row1:     .half 0
-        freq_car_row2:      .half 9
-        count_car_row2:     .half 0
+        freq_log_row1:  .half 15
+        count_log_row1: .half 0
+        freq_log_row2:  .half 12
+        count_log_row2: .half 0
+        freq_car_row1:  .half 16
+        count_car_row1: .half 0
+        freq_car_row2:  .half 9
+        count_car_row2: .half 0
     # gamestates
         paused:         .byte 0   # whether the game is paused, 0 by default
 .text
@@ -74,6 +74,7 @@ GAMELOOP:
   KEYSTROKE:
         jal INPUT                 # call function to handle input in the event of a keystroke
   NOKEYSTROKE:
+        # jal CHECK_COLLIDE
         jal MOVE_OBSTACLES
         jal DRAW_BACKGROUND       # call function DRAW_BACKGROUND
         jal DRAW_LOGS             # call function to draw 4 logs
@@ -87,6 +88,10 @@ GAMELOOP:
         li $a0, 140               #   for 140 milliseconds before looping
         syscall                   #   (achieving roughly 6 fps)
         j GAMELOOP
+  PAUSE:
+  PAUSELOOP:
+
+        j PAUSELOOP
 Exit:
         li $v0, 10                # terminate the program gracefully
         syscall
@@ -166,7 +171,7 @@ Exit:
           j VERTICAL_LOOP           # jump back to start of loop
     VERTICAL_END:
           jr $ra                    # return
-  DRAW_FROG:                        # both the position addr and direction (TODO) of the frog are stored as variables
+  DRAW_FROG:                        # both the position addr and direction of the frog are stored as variables
           addi $sp, $sp, -4         # put $ra value
           sw $ra, 0($sp)            #   onto stack
 
@@ -355,7 +360,7 @@ INPUT:                              # function to execute relevant actions when 
         jr $ra                      # return
 
 MOVE_OBSTACLE:                    # $a0, $a1(+1/-1), $a2, and $a3 store the address of the position, the direction, and the frequency of movement of the obstacle
-        lh $t0, 0($a0)
+        lh $t0, 0($a0)            # position of obstacle
         li $t9, 8                 # $t9 = 8
         div $t0, $t9
         mfhi $t1                  # $t1 = $t0 % 8 is the horizontal position of the obstacle
@@ -389,6 +394,14 @@ MOVE_OBSTACLES:
         jal MOVE_OBSTACLE
         la $a0, log2              # load the address of the position of log2
         jal MOVE_OBSTACLE
+
+        lh $t5, frog              # position of frog
+        li $t9, 8                 # $t9 = 8 = tiles per row
+        div $t5, $t9
+        mflo $t6                  # $t6 = $t5 / 8 is the row of the frog
+        bne $t6, 2, END_LOG_ROW_1 # branch if frog not on this row
+        la $a0, frog              # load the address of the position of frog
+        jal MOVE_OBSTACLE
   END_LOG_ROW_1:
         sh $t3, count_log_row1    # store $t3 back at the counter address
 
@@ -402,6 +415,14 @@ MOVE_OBSTACLES:
         la $a0, log3              # load the address of the position of log3
         jal MOVE_OBSTACLE
         la $a0, log4              # load the address of the position of log4
+        jal MOVE_OBSTACLE
+
+        lh $t5, frog              # position of frog
+        li $t9, 8                 # $t9 = 8 = tiles per row
+        div $t5, $t9
+        mflo $t6                  # $t6 = $t5 / 8 is the row of the frog
+        bne $t6, 3, END_LOG_ROW_2 # branch if frog not on this row
+        la $a0, frog              # load the address of the position of frog
         jal MOVE_OBSTACLE
   END_LOG_ROW_2:
         sh $t3, count_log_row2    # store $t3 back at the counter address
@@ -418,6 +439,14 @@ MOVE_OBSTACLES:
         jal MOVE_OBSTACLE
         la $a0, car2              # load the address of the position of car2
         jal MOVE_OBSTACLE
+
+        lh $t5, frog              # position of frog
+        li $t9, 8                 # $t9 = 8 = tiles per row
+        div $t5, $t9
+        mflo $t6                  # $t6 = $t5 / 8 is the row of the frog
+        bne $t6, 5, END_LOG_CAR_1 # branch if frog not on this row
+        la $a0, frog              # load the address of the position of frog
+        jal MOVE_OBSTACLE
   END_CAR_ROW_1:
         sh $t3, count_car_row1    # store $t3 back at the counter address
 
@@ -432,6 +461,14 @@ MOVE_OBSTACLES:
         jal MOVE_OBSTACLE
         la $a0, car4              # load the address of the position of car4
         jal MOVE_OBSTACLE
+
+        lh $t5, frog              # position of frog
+        li $t9, 8                 # $t9 = 8 = tiles per row
+        div $t5, $t9
+        mflo $t6                  # $t6 = $t5 / 8 is the row of the frog
+        bne $t6, 6, END_LOG_CAR_2 # branch if frog not on this row
+        la $a0, frog              # load the address of the position of frog
+        jal MOVE_OBSTACLE
   END_CAR_ROW_2:
         sh $t3, count_car_row2    # store $t3 back at the counter address
 
@@ -439,3 +476,36 @@ MOVE_OBSTACLES:
         lw $ra, 0($sp)            # restore return
         addi $sp, $sp, 4          #   address value
         jr $ra                    # return
+
+# CHECK_COLLIDE:
+#         lh $t0, frog                # location of frog
+#         li $t9, 8                   # tiles per row
+#         div $t0, $t9
+#         mflo $t1                    # $t1 = $t0 / 8 = row frog is on
+#         mflo $t2                    # $t1 = $t0 % 8 = column frog is on
+#         ble $t1, 1, ON_GOAL         # frog is in goal region
+#         beq $t1, 2, ON_LOG_ROW_1    # frog is on log row 1
+#         beq $t1, 3, ON_LOG_ROW_2    # frog is on log row 2
+#         beq $t1, 5, ON_CAR_ROW_1    # frog is on car row 1
+#         beq $t1, 6, ON_CAR_ROW_2    # frog is on car row 2
+#         j CHECK_END
+#   ON_LOG_ROW_1:
+#         lh $t7, log1                # position of first log on row 1
+#         lh $t8, log2                # position of second log on row 1
+#         addi $t5, $t0, -1           # tile left of frog
+#         beq $t5, $t7, ALIVE_LR1
+#         beq $t5, $t8, ALIVE_LR1
+#         addi $t5, $t0, 0            # tile of frog
+#         beq $t5, $t7, ALIVE_LR1
+#         beq $t5, $t8, ALIVE_LR1
+#         addi $t5, $t0, 0            # tile right of frog
+#         beq $t5, $t7, ALIVE_LR1
+#         beq $t5, $t8, ALIVE_LR1
+#         j DEAD                      # frog not on any log on this row
+#     ALIVE_LR1:
+#         j CHECK_END
+#   DEAD:
+#         li $t0, 60                  # default location of frog
+#         sh $t0, frog                # set location of frog
+#   CHECK_END:
+#         jr $ra                      # return
