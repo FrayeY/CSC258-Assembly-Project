@@ -18,9 +18,9 @@
 #
 # Which approved additional features have been implemented?
 # (See the assignment handout for the list of additional features)
-# 1. (fill in the feature, if any)
-# 2. (fill in the feature, if any)
-# 3. (fill in the feature, if any)
+# 1. Displaying a pause screen or image when the ‘p’ key is pressed, and returning to the game when ‘p’ is pressed again. (TODO)
+# 2. Make the frog point in the direction that it’s traveling.
+# 3. Have objects in different rows move at different speeds. (TODO)
 # ... (add more if necessary)
 #
 # Any additional information that the TA needs to know:
@@ -169,17 +169,17 @@ Exit:
           lb $t3, frogdir           # $t3 stores the direction of the frog
           beq $t3, 0, DRAW_FROG_UP
           beq $t3, 1, DRAW_FROG_LEFT
-          beq $t3, 2, DRAW_FROG_UP
-          beq $t3, 3, DRAW_FROG_UP
+          beq $t3, 2, DRAW_FROG_DOWN
+          beq $t3, 3, DRAW_FROG_RIGHT
           j END_DRAW_DIRECTION
     DRAW_FROG_UP:
-          sw $t2, 0($t0)            # first row |x__x|
+          sw $t2, 0($t0)            # first row |x--x|
           sw $t2, 12($t0)
           sw $t2, 128($t0)          # second row |xxxx|
           sw $t2, 132($t0)
           sw $t2, 136($t0)
           sw $t2, 140($t0)
-          sw $t2, 260($t0)          # third row |_xx_|
+          sw $t2, 260($t0)          # third row |-xx-|
           sw $t2, 264($t0)
           sw $t2, 384($t0)          # fourth row |xxxx|
           sw $t2, 388($t0)
@@ -187,17 +187,45 @@ Exit:
           sw $t2, 396($t0)
           j END_DRAW_DIRECTION
     DRAW_FROG_LEFT:
-          sw $t2, 0($t0)            # first row |xx_x|
+          sw $t2, 0($t0)            # first row |xx-x|
           sw $t2, 4($t0)
           sw $t2, 12($t0)
-          sw $t2, 132($t0)          # second row |_xxx|
+          sw $t2, 132($t0)          # second row |-xxx|
           sw $t2, 136($t0)
           sw $t2, 140($t0)
-          sw $t2, 260($t0)          # third row |_xxx|
+          sw $t2, 260($t0)          # third row |-xxx|
           sw $t2, 264($t0)
           sw $t2, 268($t0)
-          sw $t2, 384($t0)          # fourth row |xx_x|
+          sw $t2, 384($t0)          # fourth row |xx-x|
           sw $t2, 388($t0)
+          sw $t2, 396($t0)
+          j END_DRAW_DIRECTION
+    DRAW_FROG_DOWN:
+          sw $t2, 0($t0)            # first row |xxxx|
+          sw $t2, 4($t0)
+          sw $t2, 8($t0)
+          sw $t2, 12($t0)
+          sw $t2, 132($t0)          # second row |-xx-|
+          sw $t2, 136($t0)
+          sw $t2, 256($t0)          # third row |xxxx|
+          sw $t2, 260($t0)
+          sw $t2, 264($t0)
+          sw $t2, 268($t0)
+          sw $t2, 384($t0)          # fourth row |x--x|
+          sw $t2, 396($t0)
+          j END_DRAW_DIRECTION
+    DRAW_FROG_RIGHT:
+          sw $t2, 0($t0)            # first row |x-xx|
+          sw $t2, 8($t0)
+          sw $t2, 12($t0)
+          sw $t2, 128($t0)          # second row |xxx-|
+          sw $t2, 132($t0)
+          sw $t2, 136($t0)
+          sw $t2, 256($t0)          # third row |xxx-|
+          sw $t2, 260($t0)
+          sw $t2, 264($t0)
+          sw $t2, 384($t0)          # fourth row |x-xx|
+          sw $t2, 392($t0)
           sw $t2, 396($t0)
           j END_DRAW_DIRECTION
     END_DRAW_DIRECTION:
@@ -281,13 +309,13 @@ Exit:
 INPUT:
         lh $t1, frog                # load current frog position
         lw $t2, 0xffff0004          # load ASCII value of pressed key into $t2
-        beq $t2, 0x70, respong_to_p
+        beq $t2, 0x70, respond_to_p
         beq $t2, 0x77, respond_to_w
         beq $t2, 0x61, respond_to_a
 	      beq $t2, 0x73, respond_to_s
         beq $t2, 0x64, respond_to_d
         j END_INPUT                 # if none of branch cases match, invalid input, ignore
-  respong_to_p:
+  respond_to_p:
         j END_INPUT                 # TODO
   respond_to_w:
         li $t3, 0                   # frogdir = 0 indicates upward direction
