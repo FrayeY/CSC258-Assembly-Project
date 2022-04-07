@@ -22,6 +22,7 @@
 # 2. Make the frog point in the direction that it's traveling.
 # 3. Have objects in different rows move at different speeds.
 # 4. After final player death, display game over/retry screen. Restart the game if the "retry" option is chosen.
+# 5. Display the number of lives remaining.
 #
 # Any additional information that the TA needs to know:
 # - (write here, if any)
@@ -70,15 +71,22 @@
         freq_car_row2:  .half 9
         count_car_row2: .half 0
     # gamestates
-        # paused:         .byte 0   # whether the game is paused, 0 by default
         lives:          .byte 3   # number of lives left, initialized to 3
         goal1:          .byte 0   # whether a frog has reached this goal region (tile 8)
         goal2:          .byte 0   # whether a frog has reached this goal region (tile 10)
         goal3:          .byte 0   # whether a frog has reached this goal region (tile 12)
         goal4:          .byte 0   # whether a frog has reached this goal region (tile 13)
         goal5:          .byte 0   # whether a frog has reached this goal region (tile 15)
+        remaining_time: .word 300 # time left in frames
 
 .text
+START_MENU:
+        jal DRAW_START_MENU
+MENULOOP:
+        # handle keyboard input
+        lw $t8, 0xffff0000
+        bne $t8, 1, MENULOOP      # loop until a key is pressed
+        j GAMELOOP
 GAMELOOP:
         # handle keyboard input
         lw $t8, 0xffff0000
@@ -90,6 +98,8 @@ GAMELOOP:
         jal CHECK_COLLIDE         # check for collisions
         jal MOVE_OBSTACLES        # move obstacles which should move this cycle
         jal DRAW_BACKGROUND       # call function DRAW_BACKGROUND
+        jal DRAW_LIVES            # call function to draw number of lives left
+        jal DRAW_TIMER
         jal DRAW_FILLED_GOALS     # call function to draw goals which are filled
         jal DRAW_LOGS             # call function to draw 4 logs
         jal DRAW_CARS             # call function to draw 4 cars
@@ -99,18 +109,22 @@ GAMELOOP:
         jal DRAW_FROG             # draw frog at its location
         jal CHECK_WIN
 
+        lw $t9, remaining_time
+        addi $t9, $t9, -1         # decrement
+        beq $t9, 0, LOSE          # lose if time up
+        sw $t0, remaining_time    # update time variable
         li $v0, 32                # sleep syscall
         li $a0, 140               #   for 140 milliseconds before looping
         syscall                   #   (achieving roughly 6 fps)
         j GAMELOOP
-  PAUSELOOP:
+PAUSELOOP:
         # handle keyboard input
         lw $t8, 0xffff0000
         bne $t8, 1, PAUSELOOP
         lw $t2, 0xffff0004        # load ASCII value of pressed key into $t2
         beq $t2, 0x70, UNPAUSE    # if 'p' pressed, unpause
         j PAUSELOOP
-    UNPAUSE:
+  UNPAUSE:
         j GAMELOOP
 LOSE:
         # end/restart page
@@ -146,8 +160,47 @@ RESTART:
         sb $t0, lives             # reset to 3 lives
         li $t0, 60                # default location of frog
         sh $t0, frog              # set location of frog
-        j GAMELOOP
+        li $t0, 300
+        sw $t0, remaining_time    # reset to 300 frames
+        # reset goals
+        li $t0, 0
+        sb $t0, goal1             # reset to unfilled
+        sb $t0, goal2             # reset to unfilled
+        sb $t0, goal3             # reset to unfilled
+        sb $t0, goal4             # reset to unfilled
+        sb $t0, goal5             # reset to unfilled
+        j START_MENU
 # drawing functions
+  DRAW_START_MENU:
+        addi $sp, $sp, -4         # put $ra value
+        sw $ra, 0($sp)            #   onto stack
+
+        # Start menu
+        li $a0, 0                 # starts in the top left
+        li $a1, 32                # width is 32
+        li $a2, 32                # height is 32
+        lw $a3, color_frog        # frog color
+        jal DRAW_RECTANGLE        # draw rectangle
+
+        lw $ra, 0($sp)            # restore return
+        addi $sp, $sp, 4          #   address value
+        jr $ra                    # return
+  DRAW_TIMER:
+        addi $sp, $sp, -4         # put $ra value
+        sw $ra, 0($sp)            #   onto stack
+        lw $t0, remaining_time
+        li $t1, 20
+        div $t0, $t1
+        mflo $t2
+        li $a0, 48
+        move $a1, $t2             # width is $t2 = time / 20
+        li $a2, 2                 # height is 2
+        li $a3, 0xffffff          # white color
+        jal DRAW_RECTANGLE        # draw rectangle
+
+        lw $ra, 0($sp)            # restore return
+        addi $sp, $sp, 4          #   address value
+        jr $ra                    # return
   DRAW_PAUSE_BACKGROUND:
         addi $sp, $sp, -4         # put $ra value
         sw $ra, 0($sp)            #   onto stack
@@ -553,39 +606,77 @@ RESTART:
   DRAW_FILLED_GOALS:
         addi $sp, $sp, -4         # put $ra value
         sw $ra, 0($sp)            #   onto stack
-        li $a1, 4                 # width is 4
-        li $a2, 2                 # height is 2
+        li $a1, 2                 # width is 2
+        li $a2, 4                 # height is 4
         lw $a3, filled_goal       # filled goal region color
 
         lb $t1, goal1
         bne $t1, 1, NO_GOAL_1
-        li $a0, 128
+        li $a0, 129
         jal DRAW_RECTANGLE        # draw rectangle
     NO_GOAL_1:
         lb $t2, goal2
         bne $t2, 1, NO_GOAL_2
-        li $a0, 136
+        li $a0, 137
         jal DRAW_RECTANGLE        # draw rectangle
     NO_GOAL_2:
         lb $t3, goal3
         bne $t3, 1, NO_GOAL_3
-        li $a0, 144
+        li $a0, 145
         jal DRAW_RECTANGLE        # draw rectangle
     NO_GOAL_3:
         lb $t4, goal4
         bne $t4, 1, NO_GOAL_4
-        li $a0, 148
+        li $a0, 149
         jal DRAW_RECTANGLE        # draw rectangle
     NO_GOAL_4:
         lb $t5, goal5
         bne $t5, 1, NO_GOAL_5
-        li $a0, 156
+        li $a0, 157
         jal DRAW_RECTANGLE        # draw rectangle
     NO_GOAL_5:
 
         lw $ra, 0($sp)            # restore return
         addi $sp, $sp, 4          #   address value
         jr $ra                    # return
+  DRAW_LIVES:                     # draw one square for each live left
+      addi $sp, $sp, -4           # put $ra value
+      sw $ra, 0($sp)              #   onto stack
+
+      li $a1, 2                   # width is 2
+      li $a2, 2                   # height is 4
+      lw $a3, color_frog          # frog color
+
+      li $a0, 33
+      jal DRAW_RECTANGLE          # draw rectangle
+      lb $t0, lives               # number of lives left
+      ble $t0, 1, END_DRAW_LIVES  # lives = 1
+      li $a0, 37
+      jal DRAW_RECTANGLE          # draw rectangle
+      lb $t0, lives               # number of lives left
+      ble $t0, 2, END_DRAW_LIVES  # lives = 2
+      li $a0, 41
+      jal DRAW_RECTANGLE          # draw rectangle
+    END_DRAW_LIVES:
+      lw $ra, 0($sp)              # restore return
+      addi $sp, $sp, 4            #   address value
+      jr $ra                      # return
+  DRAW_DEATH_ANIMATION:
+          li $a0, 0
+          li $a1, 32                # width is 32
+          li $a2, 32                # height is 32
+          li $a3, 0xffa500          # orange color
+          addi $sp, $sp, -4         # put $ra value
+          sw $ra, 0($sp)            #   onto stack
+          jal DRAW_RECTANGLE        # draw rectangle
+
+          li $v0, 32                # sleep syscall
+          li $a0, 150               #   for 150 milliseconds before returning
+          syscall
+
+          lw $ra, 0($sp)            # restore return
+          addi $sp, $sp, 4          #   address value
+          jr $ra                    # return
 INPUT:                            # function to execute relevant actions when a keystoke is detected
         lh $t1, frog                # load current frog position
         lw $t2, 0xffff0004          # load ASCII value of pressed key into $t2
@@ -626,7 +717,6 @@ INPUT:                            # function to execute relevant actions when a 
         j END_INPUT
   END_INPUT:
         jr $ra                      # return
-
 MOVE_OBSTACLE:                    # $a0, $a1(+1/-1), $a2, and $a3 store the address of the position, the direction, and the frequency of movement of the obstacle
         lh $t0, 0($a0)            # position of obstacle
         li $t9, 8                 # $t9 = 8
@@ -646,7 +736,6 @@ MOVE_OBSTACLE:                    # $a0, $a1(+1/-1), $a2, and $a3 store the addr
   NO_OVERFLOW:
         sh $t0, 0($a0)            # store $a0 back at the $a0 address
         jr $ra
-
 MOVE_OBSTACLES:
         addi $sp, $sp, -4         # put $ra value
         sw $ra, 0($sp)            #   onto stack
@@ -728,7 +817,6 @@ MOVE_OBSTACLES:
         lw $ra, 0($sp)            # restore return
         addi $sp, $sp, 4          #   address value
         jr $ra                    # return
-
 CHECK_WIN:
         lb $t1, goal1
         lb $t2, goal2
@@ -845,6 +933,11 @@ CHECK_COLLIDE:
         beq $t5, $t8, DEAD
         j CHECK_END                 # frog not on any car on this row
   DEAD:
+        addi $sp, $sp, -4           # put $ra value
+        sw $ra, 0($sp)              #   onto stack
+        jal DRAW_DEATH_ANIMATION
+        lw $ra, 0($sp)              # restore return
+        addi $sp, $sp, 4            #   address value
         lb $t6, lives               # number of lives
         addi $t6, $t6, -1           # decrement lives
         sb $t6, lives               # set lives
