@@ -23,6 +23,9 @@
 # 3. Have objects in different rows move at different speeds.
 # 4. After final player death, display game over/retry screen. Restart the game if the "retry" option is chosen.
 # 5. Display the number of lives remaining.
+# 6. Display a death/respawn animation each time the player loses a frog.
+# 7. Start menu.
+# 8. Add a time limit to the game.
 #
 # Any additional information that the TA needs to know:
 # - (write here, if any)
@@ -99,7 +102,7 @@ GAMELOOP:
         jal MOVE_OBSTACLES        # move obstacles which should move this cycle
         jal DRAW_BACKGROUND       # call function DRAW_BACKGROUND
         jal DRAW_LIVES            # call function to draw number of lives left
-        jal DRAW_TIMER
+        # jal DRAW_TIMER
         jal DRAW_FILLED_GOALS     # call function to draw goals which are filled
         jal DRAW_LOGS             # call function to draw 4 logs
         jal DRAW_CARS             # call function to draw 4 cars
@@ -189,11 +192,11 @@ RESTART:
         addi $sp, $sp, -4         # put $ra value
         sw $ra, 0($sp)            #   onto stack
         lw $t0, remaining_time
-        li $t1, 20
+        li $t1, 30
         div $t0, $t1
         mflo $t2
         li $a0, 48
-        move $a1, $t2             # width is $t2 = time / 20
+        move $a1, $t2             # width is $t2 = time / 30
         li $a2, 2                 # height is 2
         li $a3, 0xffffff          # white color
         jal DRAW_RECTANGLE        # draw rectangle
